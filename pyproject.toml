@@ -28,4 +28,7 @@ llm_delusions_annotation = ["data/*.csv"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "black==24.8.0",
+    "pylint==3.3.1",
+    "isort==5.13.2",
 ]
