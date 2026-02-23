@@ -1,5 +1,5 @@
 [project]
-name = "llm-delusions-annotation"
+name = "llm-delusions-annotations"
 version = "0.1.0"
 description = "Tools for annotating chatbot conversations for indicators of LLM delusions"
 readme = "README.md"
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-llm-delusions-annotation = "llm_delusions_annotation:main"
+llm-delusions-annotations = "llm_delusions_annotations:main"
 
 [build-system]
 requires = [
@@ -23,7 +23,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
-llm_delusions_annotation = ["data/*.csv"]
+llm_delusions_annotations = ["data/*.csv"]
 
 [dependency-groups]
 dev = [

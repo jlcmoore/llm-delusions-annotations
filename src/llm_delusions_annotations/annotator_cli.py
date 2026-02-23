@@ -80,7 +80,7 @@ def main():
     )
     annotation_ids = [spec["id"] for spec in ANNOTATIONS]
     parser.add_argument(
-        "--annotation",
+        "--annotation-ids",
         "-a",
         action="append",
         choices=annotation_ids,
@@ -92,7 +92,7 @@ def main():
     )
     add_preceding_context_argument(parser)
     parser.add_argument(
-        "--cot",
+        "--cot-enabled",
         action="store_true",
         help=(
             "Allow the model to use a chain-of-thought scratchpad wrapped in "
@@ -121,9 +121,9 @@ def main():
         input_path=args.input,
         output_path=args.output,
         model=args.model,
-        annotation_ids=args.annotation,
+        annotation_ids=args.annotation_ids,
         preceding_count=args.preceding_context,
-        cot_enabled=args.cot,
+        cot_enabled=args.cot_enabled,
         timeout=args.timeout,
         max_workers=args.max_workers,
     )
