@@ -11,14 +11,16 @@ Currently, this Python package must be installed directly from the GitHub reposi
 To install using pip:
 
 ```python
-pip install 
+pip install llm@redacted
 ```
 
 To install using uv:
 
 ```python
-uv install 
+uv install llm-delusions-annotations@redacted
 ```
+
+**TODO**: URLs have been removed for anonymization; add them after paper publication
 
 ## Usage
 
