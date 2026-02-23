@@ -1,0 +1,31 @@
+[project]
+name = "llm-delusions-annotation"
+version = "0.1.0"
+description = "Tools for annotating chatbot conversations for indicators of LLM delusions"
+readme = "README.md"
+authors = [
+    { name = "Yifan Mai", email = "yifan@cs.stanford.edu" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "json-repair>=0.55.0",
+    "litellm>=1.81.1",
+    "tqdm>=4.67.1",
+]
+
+[project.scripts]
+llm-delusions-annotation = "llm_delusions_annotation:main"
+
+[build-system]
+requires = [
+  "setuptools >= 40.9.0",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+llm_delusions_annotation = ["data/*.csv"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
