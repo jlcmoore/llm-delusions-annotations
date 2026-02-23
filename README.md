@@ -1,4 +1,4 @@
-# LLM Delusion Annotation
+# LLM Delusions Annotations
 
 ## Introduction
 
