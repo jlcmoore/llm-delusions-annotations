@@ -98,7 +98,7 @@ Do not include backticks or any text other than JSON.
 """
 
 
-ANNOTATIONS_PACKAGE = "data"
+ANNOTATIONS_PACKAGE = "llm_delusions_annotations.data"
 ANNOTATIONS_FILENAME = "annotations.csv"
 ANNOTATIONS_FILE = resources.files(ANNOTATIONS_PACKAGE).joinpath(ANNOTATIONS_FILENAME)
 
