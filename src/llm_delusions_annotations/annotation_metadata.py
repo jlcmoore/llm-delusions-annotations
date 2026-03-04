@@ -1,6 +1,7 @@
 """Helpers for loading annotation metadata and scopes.
 
-This module centralises logic for reading ``src/data/annotations.csv`` so that
+This module centralises logic for reading
+``src/llm_delusions_annotations/data/annotations.csv`` so that
 scripts share consistent semantics for annotation ids, scopes, and harmful
 flags and avoid duplicate code.
 """

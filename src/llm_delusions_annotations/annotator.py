@@ -49,6 +49,8 @@ class _AnnotatorTask:
 
 @dataclass(frozen=True)
 class ChatWithAnnotations:
+    """Container for a chat and its per-message annotation results."""
+
     chat: Chat
     annotations: Sequence[Dict[str, ClassifyResult]]
 
@@ -67,8 +69,6 @@ def _to_annotatable_message(
 def build_annotation_request(
     message: Union[AnnotatableMessage, Dict],
     annotation_id: str,
-    *,
-    cot_enabled: bool = False,
 ):
     """Return the request to be sent to the model for annotating a single message
     with a single annotation."""
@@ -78,7 +78,11 @@ def build_annotation_request(
     message = _to_annotatable_message(message)
     if message.role not in annotation_config.allowed_roles:
         raise ValueError(
-            f"Message role '{message.role}' is not an allowed role for the annotation '{annotation_config.spec['id']}'; allowed roles are {annotation_config.allowed_roles}"
+            (
+                f"Message role '{message.role}' is not an allowed role for the "
+                f"annotation '{annotation_config.spec['id']}'; allowed roles are "
+                f"{annotation_config.allowed_roles}"
+            )
         )
     prompt_text = build_prompt(
         annotation=annotation_config.spec,
@@ -89,7 +93,6 @@ def build_annotation_request(
             if message.preceding_messages is not None
             else None
         ),
-        include_cot_addendum=cot_enabled,
     )
     return to_litellm_messages(build_completion_messages(prompt_text))
 
@@ -137,7 +140,6 @@ class Annotator:
         annotation_ids: List[str] = None,
         *,
         preceding_count: int = 0,
-        cot_enabled: bool = False,
     ) -> Sequence[Dict[str, ClassifyResult]]:
         """Return annotations for the chat."""
         messages = list(
@@ -147,7 +149,6 @@ class Annotator:
             messages,
             model=model,
             annotation_ids=annotation_ids,
-            cot_enabled=cot_enabled,
         )
 
     def annotate_messages(
@@ -155,8 +156,6 @@ class Annotator:
         messages: Sequence[AnnotatableMessage],
         model: str,
         annotation_ids: List[str] = None,
-        *,
-        cot_enabled: bool = False,
     ) -> Sequence[Dict[str, ClassifyResult]]:
         """Return annotations for messages.
 
@@ -170,10 +169,7 @@ class Annotator:
             if message.role in annotation_config.allowed_roles
         ]
         requests = [
-            build_annotation_request(
-                task.message, task.annotation_id, cot_enabled=cot_enabled
-            )
-            for task in tasks
+            build_annotation_request(task.message, task.annotation_id) for task in tasks
         ]
         classify_results = make_classify_requests(
             requests, model=model, timeout=self.timeout, max_workers=self.max_workers
@@ -190,8 +186,6 @@ class Annotator:
         message: Union[AnnotatableMessage, Dict],
         model: str,
         annotation_ids: List[str] = None,
-        *,
-        cot_enabled: bool = False,
     ) -> Dict[str, ClassifyResult]:
         """Return annotations for a single message."""
         message = _to_annotatable_message(message)
@@ -199,7 +193,6 @@ class Annotator:
             [message],
             model=model,
             annotation_ids=annotation_ids,
-            cot_enabled=cot_enabled,
         )
         assert len(results) == 1
         return results[0]
@@ -211,8 +204,9 @@ class Annotator:
         annotation_ids: List[str] = None,
         *,
         preceding_count: int = 0,
-        cot_enabled: bool = False,
     ) -> Iterator[ChatWithAnnotations]:
+        """Yield annotated chats from a single transcript file."""
+
         chats = load_chats_for_file(pathlib.Path(path))
         for chat in chats:
             annotations = self.annotate_chat(
@@ -220,6 +214,5 @@ class Annotator:
                 model,
                 annotation_ids,
                 preceding_count=preceding_count,
-                cot_enabled=cot_enabled,
             )
             yield ChatWithAnnotations(chat, annotations)

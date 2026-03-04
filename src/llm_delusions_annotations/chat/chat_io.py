@@ -483,31 +483,9 @@ def _extract_all_visible_messages(
 
     messages: List[Dict[str, str]] = []
     for node in id_to_node.values():
-        if not isinstance(node, dict):
-            continue
-        if _is_visually_hidden(node):
-            continue
-        text = _extract_text_from_node_message(node)
-        if not text:
-            continue
-        message = node.get("message") if isinstance(node.get("message"), dict) else {}
-        author = (
-            message.get("author") if isinstance(message.get("author"), dict) else {}
-        )
-        role = _normalize_role(author.get("role"))
-        metadata = (
-            message.get("metadata") if isinstance(message.get("metadata"), dict) else {}
-        )
-        model_slug = metadata.get("model_slug")
-        timestamp_label = extract_best_timestamp_label(message)
-        messages.append(
-            _build_message_entry(
-                role=role,
-                content=text,
-                model_slug=model_slug,
-                timestamp_label=timestamp_label,
-            )
-        )
+        entry = _message_entry_from_node(node)
+        if entry is not None:
+            messages.append(entry)
     return messages
 
 
@@ -520,32 +498,36 @@ def _extract_messages_along_path(
     messages: List[Dict[str, str]] = []
     for node_id in path:
         node = id_to_node.get(node_id) or {}
-        if not isinstance(node, dict):
-            continue
-        if _is_visually_hidden(node):
-            continue
-        text = _extract_text_from_node_message(node)
-        if not text:
-            continue
-        message = node.get("message") if isinstance(node.get("message"), dict) else {}
-        author = (
-            message.get("author") if isinstance(message.get("author"), dict) else {}
-        )
-        role = _normalize_role(author.get("role"))
-        metadata = (
-            message.get("metadata") if isinstance(message.get("metadata"), dict) else {}
-        )
-        model_slug = metadata.get("model_slug")
-        timestamp_label = extract_best_timestamp_label(message)
-        messages.append(
-            _build_message_entry(
-                role=role,
-                content=text,
-                model_slug=model_slug,
-                timestamp_label=timestamp_label,
-            )
-        )
+        entry = _message_entry_from_node(node)
+        if entry is not None:
+            messages.append(entry)
     return messages
+
+
+def _message_entry_from_node(node: Dict[str, object]) -> Dict[str, str] | None:
+    """Build a normalized message entry from a ChatGPT export node."""
+
+    if not isinstance(node, dict):
+        return None
+    if _is_visually_hidden(node):
+        return None
+    text = _extract_text_from_node_message(node)
+    if not text:
+        return None
+    message = node.get("message") if isinstance(node.get("message"), dict) else {}
+    author = message.get("author") if isinstance(message.get("author"), dict) else {}
+    role = _normalize_role(author.get("role"))
+    metadata = (
+        message.get("metadata") if isinstance(message.get("metadata"), dict) else {}
+    )
+    model_slug = metadata.get("model_slug")
+    timestamp_label = extract_best_timestamp_label(message)
+    return _build_message_entry(
+        role=role,
+        content=text,
+        model_slug=model_slug,
+        timestamp_label=timestamp_label,
+    )
 
 
 def _find_deepest_or_current_path(

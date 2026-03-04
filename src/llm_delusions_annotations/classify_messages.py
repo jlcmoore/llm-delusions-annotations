@@ -12,7 +12,6 @@ import json_repair
 from llm_delusions_annotations.annotation_prompts import (
     ANNOTATION_SYSTEM_PROMPT,
     extract_first_choice_fields,
-    split_thought_from_response,
 )
 from llm_delusions_annotations.chat.chat_utils import MessageContext
 from llm_delusions_annotations.llm_utils.client import (
@@ -67,7 +66,7 @@ class ClassificationOutcome:
     task: ClassificationTask
     matches: List[str]
     error: Optional[str]
-    thought: Optional[str] = None
+    rationale: Optional[str] = None
     score: Optional[int] = None
     reasoning_content: Optional[str] = None
     thinking_blocks: Optional[List[dict[str, Any]]] = None
@@ -98,45 +97,28 @@ def to_litellm_messages(
 
 def extract_matches_from_response(
     response: object,
-) -> tuple[Optional[str], List[str], Optional[int]]:
-    """Parse a LiteLLM completion response into a scratchpad, quotes, and score.
-
-    Returns the extracted chain-of-thought text (when present), the parsed JSON
-    list of quote strings, and an optional numeric score when provided.
-    """
+) -> tuple[str, List[str], Optional[int]]:
+    """Parse a LiteLLM completion response into rationale, quotes, and score."""
     try:
-        content_raw, finish_reason = extract_first_choice_fields(response)
+        content_raw, _finish_reason = extract_first_choice_fields(response)
     except ValueError as err:
         raise ClassificationError(f"{err} Response: {response}.") from err
 
     content = str(content_raw or "").strip()
     if not content:
-        if finish_reason == "stop":
-            logging.warning(
-                "Empty content with finish_reason='stop'; assuming empty matches list. "
-                "Raw message content: %r",
-                content_raw,
-            )
-            content = "[]"
-        else:
-            raise ClassificationError(
-                f"Empty response from the LiteLLM API. Raw: {content_raw}"
-            )
+        raise ClassificationError(
+            f"Empty response from the LiteLLM API. Raw: {content_raw}"
+        )
     return extract_matches_from_response_text(content)
 
 
 def extract_matches_from_response_text(
     content: str,
-) -> tuple[Optional[str], List[str], Optional[int]]:
-    """Parse a LiteLLM completion response into a scratchpad, quotes, and score.
-
-    Returns the extracted chain-of-thought text (when present), the parsed JSON
-    list of quote strings, and an optional numeric score when provided.
-    """
-    thought, content_for_parsing = split_thought_from_response(content)
+) -> tuple[str, List[str], Optional[int]]:
+    """Parse a LiteLLM completion response into rationale, quotes, and score."""
 
     try:
-        parsed = json_repair.loads(content_for_parsing)
+        parsed = json_repair.loads(content)
     except (json.JSONDecodeError, ValueError, TypeError, IndexError) as err:
         raise ClassificationError(
             f"Unable to parse model response as JSON: {err}"
@@ -144,23 +126,28 @@ def extract_matches_from_response_text(
 
     if not isinstance(parsed, dict):
         raise ClassificationError(
-            "Model response must be a JSON object with either both "
-            "'score' and 'quotes' fields or be an empty object {}. "
+            "Model response must be a JSON object with "
+            "'rationale', 'quotes', and 'score' fields. "
             f"Response: {content}"
         )
 
-    # Empty object {} is allowed when the condition is clearly absent and there
-    # are no supporting quotes.
-    if not parsed:
-        return thought, [], None
+    rationale_value = parsed.get("rationale")
+    if isinstance(rationale_value, str):
+        rationale = rationale_value.strip()
+    else:
+        rationale = ""
+    if not rationale:
+        raise ClassificationError(
+            "Model response 'rationale' field must be a non-empty string. "
+            f"Response: {content}"
+        )
 
     matches: List[str] = []
     score_value: Optional[int] = None
 
     if "quotes" not in parsed or "score" not in parsed:
         raise ClassificationError(
-            "Model response must include both 'score' and 'quotes' fields "
-            "when it is not empty. "
+            "Model response must include 'rationale', 'quotes', and 'score' fields. "
             f"Response: {content}"
         )
 
@@ -192,7 +179,15 @@ def extract_matches_from_response_text(
             f"Response: {content}"
         )
 
-    return thought, matches, score_value
+    keys = list(parsed.keys())
+    if "rationale" in keys and "quotes" in keys:
+        if keys.index("rationale") > keys.index("quotes"):
+            raise ClassificationError(
+                "Model response must list 'rationale' before 'quotes'. "
+                f"Response: {content}"
+            )
+
+    return rationale, matches, score_value
 
 
 @dataclass
@@ -201,7 +196,7 @@ class ClassifyResult:
 
     matches: List[str]
     error: Optional[str]
-    thought: Optional[str] = None
+    rationale: Optional[str] = None
     score: Optional[int] = None
     reasoning_content: Optional[str] = None
     thinking_blocks: Optional[List[dict[str, Any]]] = None
@@ -238,12 +233,12 @@ def make_classify_requests(
     results: List[ClassificationOutcome] = []
     for response in response_items:
         try:
-            thought, matches, score = extract_matches_from_response(response)
+            rationale, matches, score = extract_matches_from_response(response)
             reasoning_content, thinking_blocks = extract_reasoning_fields(response)
             error_details: Optional[str] = None
         except ClassificationError as err:
             matches = []
-            thought = None
+            rationale = None
             error_details = str(err)
             reasoning_content = None
             thinking_blocks = None
@@ -251,7 +246,7 @@ def make_classify_requests(
             ClassifyResult(
                 matches=matches,
                 error=error_details,
-                thought=thought,
+                rationale=rationale,
                 score=score if error_details is None else None,
                 reasoning_content=reasoning_content,
                 thinking_blocks=thinking_blocks,
@@ -286,7 +281,7 @@ def classify_tasks_batch(
                 task=task,
                 matches=classify_result.matches,
                 error=classify_result.error,
-                thought=classify_result.thought,
+                rationale=classify_result.rationale,
                 score=classify_result.score,
                 reasoning_content=classify_result.reasoning_content,
                 thinking_blocks=classify_result.thinking_blocks,

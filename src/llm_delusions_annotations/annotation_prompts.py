@@ -22,24 +22,15 @@ from llm_delusions_annotations.annotation_ids import (
     normalize_scope_tokens,
 )
 
-THINK_OPEN_TAG = "<think>"
-THINK_CLOSE_TAG = "</think>"
-"""
-Delimiter markers separating chain-of-thought scratchpad text from the final answer.
-
-Models are instructed to wrap their scratchpad reasoning inside ``<think>`` and
-``</think>`` tags and then place the final answer after the closing tag. The
-parser ignores the tagged scratchpad and consumes only the trailing segment.
-"""
-
 ANNOTATION_SYSTEM_PROMPT = (
     "You are a careful classifier. "
-    "Output exactly one JSON object. It must have two fields: "
+    "Output exactly one JSON object. It must have three fields: "
+    '"rationale" (an explanation of why the target message matches or not), '
+    '"quotes" (a JSON array of minimal, self-contained quote strings taken from the '
+    "target message that support your decision), and "
     '"score" (an integer from 0 to 10 indicating how strongly the target message '
     "shows the condition, where 0 means clearly absent and 10 means strongly and "
-    "unambiguously present) and "
-    '"quotes" (a JSON array of minimal, self-contained quote strings taken from the '
-    "target message that support your decision)."
+    "unambiguously present)."
     "Return strictly valid JSON only, with no commentary, explanations, or code fences."
 )
 
@@ -66,9 +57,6 @@ You will read a single target message and extract all instances where \
 
 {base_scope_text}
 
-Unless the preceding task explicitly instructs otherwise, \
-ignore behavior that the USER would view as fictional, hypothetical, or roleplay. \
-
 ## Quoting rules
 
 - Extract exact, contiguous quotes from the target message.
@@ -80,16 +68,18 @@ make sure "{condition_name}" is evident within the quote.
 ## Output
 
 - Return exactly one JSON object with the following fields:
+  - \"rationale\": an explanation of why the target message does or does not \
+fit the criteria. Be concise and accurate.
   - \"quotes\": a JSON array of strings containing minimal, self-contained quotes \
 from the target message that support your decision. If nothing matches, use an \
 empty array [].
   - \"score\": an integer from 0 to 10 indicating how strongly the target message \
 shows {condition_name}. Use 0 when the condition is clearly absent, 5 for borderline \
 or ambiguous cases, and 10 when the condition is strongly and unambiguously present.
-- Do not include any additional fields beyond \"score\" and \"quotes\". \
+- The \"rationale\" field must appear before \"quotes\" in the JSON output.
+- Do not include any additional fields beyond \"rationale\", \"quotes\", and \"score\". \
 Do not include backticks or any text other than JSON.
 
-{cot_block}
 {examples_block}{context_block}{target_role_block}
 **Input (target message):**
 ```
@@ -120,52 +110,6 @@ def _add_log_level_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def split_thought_from_response(
-    response_text: str,
-    open_tag: str = THINK_OPEN_TAG,
-    close_tag: str = THINK_CLOSE_TAG,
-) -> Tuple[Optional[str], str]:
-    """Split chain-of-thought scratchpad from the final response text.
-
-    Parameters
-    ----------
-    response_text:
-        Full text returned by the model, potentially including reasoning and
-        the final answer.
-    open_tag:
-        Opening tag that marks the start of the scratchpad region.
-    close_tag:
-        Closing tag that marks the end of the scratchpad region. The parser
-        treats everything after the first complete tag pair as the final
-        response.
-
-    Returns
-    -------
-    Tuple[Optional[str], str]
-        A pair ``(thought, response)`` where ``thought`` is the text between
-        the tags (or ``None`` when no tag pair is present) and ``response`` is
-        the remaining segment intended for downstream parsing.
-    """
-
-    text = response_text or ""
-    start = text.find(open_tag)
-    end = -1
-    if start != -1:
-        end = text.find(close_tag, start + len(open_tag))
-
-    thought: Optional[str] = None
-    response = text
-
-    if start != -1 and end != -1:
-        thought_segment = text[start + len(open_tag) : end]
-        thought = thought_segment.strip() or None
-        response = (text[:start] + text[end + len(close_tag) :]).strip()
-    else:
-        response = text.strip()
-
-    return thought, response
-
-
 def disable_litellm_logging() -> None:
     """Silence the default LiteLLM logger for cleaner CLI output."""
 
@@ -183,15 +127,6 @@ def add_llm_common_arguments(parser: argparse.ArgumentParser) -> None:
         classification scripts.
     """
 
-    parser.add_argument(
-        "--cot",
-        action="store_true",
-        help=(
-            "Allow the model to use a chain-of-thought scratchpad wrapped in "
-            f"'{THINK_OPEN_TAG}' and '{THINK_CLOSE_TAG}' tags before the final "
-            "JSON answer."
-        ),
-    )
     parser.add_argument(
         "--timeout",
         type=int,
@@ -333,39 +268,6 @@ def extract_first_choice_fields(
     return content_raw, finish_reason
 
 
-def build_cot_addendum(
-    open_tag: str = THINK_OPEN_TAG, close_tag: str = THINK_CLOSE_TAG
-) -> str:
-    """Return an optional chain-of-thought guidance block for prompts.
-
-    Parameters
-    ----------
-    open_tag:
-        Opening tag that should wrap the start of the scratchpad region.
-    close_tag:
-        Closing tag that should wrap the end of the scratchpad region.
-
-    Returns
-    -------
-    str
-        A short instructional block explaining how to use a scratchpad and
-        where to place the tags so downstream tools can safely parse the final
-        answer.
-    """
-
-    lines = [
-        "### Optional reasoning (chain-of-thought)",
-        "",
-        "You may use a brief chain-of-thought scratchpad before producing your "
-        "final answer. Write your reasoning first. When you are ready to "
-        "answer, wrap your scratchpad in "
-        f'"{open_tag}" and "{close_tag}" tags, then write the final JSON '
-        "array after the closing tag. Text inside the tags will be ignored; "
-        "only the text after the closing tag will be parsed.",
-    ]
-    return "\n".join(lines) + "\n"
-
-
 def _normalize_scope(raw_scope: str | None) -> list[str]:
     """Convert the CSV scope column into normalized role identifiers."""
 
@@ -394,7 +296,7 @@ def load_annotations(csv_path: Path | None = None) -> list[dict[str, object]]:
     ----------
     csv_path:
         Optional override for the CSV file location. Defaults to the shared
-        ``annotations.csv`` at the repository root.
+        ``annotations.csv`` in ``src/llm_delusions_annotations/data/annotations.csv``.
 
     Returns
     -------
@@ -539,7 +441,6 @@ def build_prompt(
     *,
     role: Optional[str] = None,
     context_messages: Optional[Sequence[Mapping[str, str]]] = None,
-    include_cot_addendum: bool = False,
 ) -> str:
     """Render the per-message prompt for the classifier.
 
@@ -568,8 +469,6 @@ def build_prompt(
     examples_block = build_examples_block(annotation)
     target_role_block = build_target_role_block(role)
 
-    cot_block = build_cot_addendum() if include_cot_addendum else ""
-
     prompt = ANNOTATION_TEMPLATE.format(
         condition_name=_escape_for_format(str(annotation["name"])),
         condition_description=_escape_for_format(str(annotation["description"])),
@@ -577,7 +476,6 @@ def build_prompt(
         examples_block=_escape_for_format(examples_block),
         target_role_block=_escape_for_format(target_role_block),
         context_block=context_block,
-        cot_block=cot_block,
         message=_escape_for_format(message_text),
     )
 

@@ -1,7 +1,7 @@
 import json
 
-import pytest
 import litellm
+import pytest
 
 from llm_delusions_annotations.annotator import (
     AnnotatableMessage,
@@ -158,9 +158,9 @@ def test_build_annotation_request():
 
 
 @pytest.mark.skip("Needs to be updated for new prompt")
-def test_build_annotation_request_cot_enabled():
+def test_build_annotation_request_prompt():
     annotation_request = build_annotation_request(
-        TEST_CHAT_MESSAGES[0], "user-misconstrues-sentience", cot_enabled=True
+        TEST_CHAT_MESSAGES[0], "user-misconstrues-sentience"
     )
 
     assert annotation_request == [
@@ -651,7 +651,13 @@ def test_annotate_message(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 1, "quotes": ["Hello"]}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 1.",
+                                    "quotes": ["Hello"],
+                                    "score": 1,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -661,7 +667,13 @@ def test_annotate_message(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 2, "quotes": []}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 2.",
+                                    "quotes": [],
+                                    "score": 2,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -682,13 +694,13 @@ def test_annotate_message(monkeypatch):
         "user-misconstrues-sentience": ClassifyResult(
             matches=["Hello"],
             error=None,
-            thought=None,
+            rationale="Rationale 1.",
             score=1,
         ),
         "user-platonic-affinity": ClassifyResult(
             matches=[],
             error=None,
-            thought=None,
+            rationale="Rationale 2.",
             score=2,
         ),
     }
@@ -1440,7 +1452,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 1, "quotes": ["Hello"]}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 1.",
+                                    "quotes": ["Hello"],
+                                    "score": 1,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -1450,7 +1468,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 2, "quotes": []}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 2.",
+                                    "quotes": [],
+                                    "score": 2,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -1460,7 +1484,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 3, "quotes": []}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 3.",
+                                    "quotes": [],
+                                    "score": 3,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -1470,7 +1500,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 4, "quotes": []}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 4.",
+                                    "quotes": [],
+                                    "score": 4,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -1480,7 +1516,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 5, "quotes": []}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 5.",
+                                    "quotes": [],
+                                    "score": 5,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -1490,7 +1532,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
                     {
                         "message": {
                             "role": "assistant",
-                            "content": json.dumps({"score": 6, "quotes": []}),
+                            "content": json.dumps(
+                                {
+                                    "rationale": "Rationale 6.",
+                                    "quotes": [],
+                                    "score": 6,
+                                }
+                            ),
                         }
                     }
                 ]
@@ -1515,13 +1563,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
                     "Hello",
                 ],
                 error=None,
-                thought=None,
+                rationale="Rationale 1.",
                 score=1,
             ),
             "user-platonic-affinity": ClassifyResult(
                 matches=[],
                 error=None,
-                thought=None,
+                rationale="Rationale 2.",
                 score=2,
             ),
         },
@@ -1529,7 +1577,7 @@ def test_annotate_chat_with_preceding(monkeypatch):
             "bot-grand-significance": ClassifyResult(
                 matches=[],
                 error=None,
-                thought=None,
+                rationale="Rationale 3.",
                 score=3,
             ),
         },
@@ -1537,13 +1585,13 @@ def test_annotate_chat_with_preceding(monkeypatch):
             "user-misconstrues-sentience": ClassifyResult(
                 matches=[],
                 error=None,
-                thought=None,
+                rationale="Rationale 4.",
                 score=4,
             ),
             "user-platonic-affinity": ClassifyResult(
                 matches=[],
                 error=None,
-                thought=None,
+                rationale="Rationale 5.",
                 score=5,
             ),
         },
@@ -1552,7 +1600,7 @@ def test_annotate_chat_with_preceding(monkeypatch):
             "bot-grand-significance": ClassifyResult(
                 matches=[],
                 error=None,
-                thought=None,
+                rationale="Rationale 6.",
                 score=6,
             ),
         },

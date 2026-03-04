@@ -78,9 +78,7 @@ def apply_reasoning_defaults(
 ) -> None:
     """Populate reasoning-related defaults into ``params`` for LiteLLM calls.
 
-    For reasoning-capable models this sets temperature and reasoning_effort.
-    For non-reasoning models this clamps temperature to 0 and optionally
-    constrains max_tokens when a completion cap is provided.
+    Assumes reasoning-capable models. Sets temperature and reasoning_effort.
 
     Parameters
     ----------
@@ -89,25 +87,14 @@ def apply_reasoning_defaults(
     params:
         Mutable dictionary of request parameters to update in place.
     max_completion_tokens:
-        Optional completion token cap applied for non-reasoning models when
+        Unused optional completion token cap applied for non-reasoning models when
         provided.
     """
-
-    if litellm.supports_reasoning(model):
-        params.setdefault("temperature", 1)
-        model_lower = model.lower()
-        level = "minimal"
-        if "gpt-5.1" in model_lower:
-            level = "none"
-        elif "gemini-2.5-flash" in model_lower:
-            level = "none"
-        elif "gemini-3-flash" in model_lower:
-            level = "minimal"
-        params.setdefault("reasoning_effort", level)
-    else:
-        params.setdefault("temperature", 0)
-        if max_completion_tokens is not None:
-            params.setdefault("max_tokens", max_completion_tokens)
+    # Only GPT models support reasoning effort so try all verions
+    litellm.drop_params = True
+    params.setdefault("temperature", 1)
+    params.setdefault("reasoning_effort", "none")
+    params.setdefault("reasoning", {"enabled": False})
 
 
 def completion(
@@ -123,6 +110,7 @@ def completion(
     enable_reasoning_defaults: bool = False,
     max_completion_tokens: Optional[int] = None,
     reasoning_effort: Optional[str] = None,
+    reasoning: Optional[Mapping[str, object]] = None,
 ) -> object:
     """Call :func:`litellm.completion` with shared retry and error handling.
 
@@ -152,6 +140,8 @@ def completion(
         Optional reasoning effort override passed to LiteLLM (for reasoning-capable
         models). When set, this overrides any default applied by
         ``enable_reasoning_defaults``.
+    reasoning:
+        Optional reasoning control payload passed through to LiteLLM.
 
     Returns
     -------
@@ -186,6 +176,8 @@ def completion(
         )
     if reasoning_effort is not None:
         request_kwargs["reasoning_effort"] = reasoning_effort
+    if reasoning is not None:
+        request_kwargs["reasoning"] = dict(reasoning)
 
     try:
         return litellm.completion(**request_kwargs)
@@ -204,6 +196,7 @@ def batch_completion(
     enable_reasoning_defaults: bool = False,
     max_completion_tokens: Optional[int] = None,
     reasoning_effort: Optional[str] = None,
+    reasoning: Optional[Mapping[str, object]] = None,
 ) -> list[object]:
     """Call :func:`litellm.batch_completion` with shared retry and error handling.
 
@@ -229,6 +222,8 @@ def batch_completion(
         Optional reasoning effort override passed to LiteLLM (for reasoning-capable
         models). When set, this overrides any default applied by
         ``enable_reasoning_defaults``.
+    reasoning:
+        Optional reasoning control payload passed through to LiteLLM.
 
     Returns
     -------
@@ -257,6 +252,8 @@ def batch_completion(
         )
     if reasoning_effort is not None:
         batch_kwargs["reasoning_effort"] = reasoning_effort
+    if reasoning is not None:
+        batch_kwargs["reasoning"] = dict(reasoning)
 
     try:
         responses = litellm.batch_completion(

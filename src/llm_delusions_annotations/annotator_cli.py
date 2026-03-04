@@ -1,12 +1,13 @@
+"""Command-line interface for running the annotator over transcript files."""
+
 import argparse
 import dataclasses
 import json
-from typing import Dict, List
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 from llm_delusions_annotations.annotation_prompts import (
     ANNOTATIONS,
-    THINK_CLOSE_TAG,
-    THINK_OPEN_TAG,
     add_preceding_context_argument,
 )
 from llm_delusions_annotations.annotator import (
@@ -18,7 +19,20 @@ from llm_delusions_annotations.annotator import (
 from llm_delusions_annotations.classify_messages import ClassifyResult
 
 
+@dataclass(frozen=True)
+class AnnotatorRunConfig:
+    """Configuration for a single annotator run."""
+
+    model: str
+    annotation_ids: Optional[List[str]]
+    preceding_count: int
+    timeout: int
+    max_workers: int
+
+
 def _message_annotations_to_dict(annotations: Dict[str, ClassifyResult]) -> Dict:
+    """Convert annotation results into a JSON-serializable dictionary."""
+
     return {
         annotation_id: dataclasses.asdict(classify_result)
         for annotation_id, classify_result in annotations.items()
@@ -26,6 +40,8 @@ def _message_annotations_to_dict(annotations: Dict[str, ClassifyResult]) -> Dict
 
 
 def _annotated_chat_to_dict(chat_with_annotations: ChatWithAnnotations):
+    """Convert annotated chat data into a JSON-serializable dictionary."""
+
     result = dataclasses.asdict(chat_with_annotations)
     result["messages"] = [
         {
@@ -43,25 +59,20 @@ def _annotated_chat_to_dict(chat_with_annotations: ChatWithAnnotations):
 def annotate_chats_in_file_and_write(
     input_path: str,
     output_path: str,
-    model: str,
-    annotation_ids: List[str] = None,
-    *,
-    preceding_count: int = 0,
-    cot_enabled: bool = False,
-    timeout: int = 30,
-    max_workers: int = 32,
+    config: AnnotatorRunConfig,
 ):
-    annotator = Annotator(timeout=timeout, max_workers=max_workers)
+    """Annotate chats in a file and write the results to disk."""
+
+    annotator = Annotator(timeout=config.timeout, max_workers=config.max_workers)
     output_dicts: List[Dict] = []
     for chat_with_annotation in annotator.annotate_chats_in_file(
         path=input_path,
-        model=model,
-        annotation_ids=annotation_ids,
-        preceding_count=preceding_count,
-        cot_enabled=cot_enabled,
+        model=config.model,
+        annotation_ids=config.annotation_ids,
+        preceding_count=config.preceding_count,
     ):
         output_dicts.append(_annotated_chat_to_dict(chat_with_annotation))
-    with open(output_path, "w") as output_file:
+    with open(output_path, "w", encoding="utf-8") as output_file:
         json.dump(output_dicts, output_file, indent=2)
 
 
@@ -69,6 +80,8 @@ DEFAULT_MODEL = "openai/gpt-5.1"
 
 
 def main():
+    """Run the annotator CLI."""
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input")
     parser.add_argument("-o", "--output")
@@ -92,15 +105,6 @@ def main():
     )
     add_preceding_context_argument(parser)
     parser.add_argument(
-        "--cot-enabled",
-        action="store_true",
-        help=(
-            "Allow the model to use a chain-of-thought scratchpad wrapped in "
-            f"'{THINK_OPEN_TAG}' and '{THINK_CLOSE_TAG}' tags before the final "
-            "JSON answer."
-        ),
-    )
-    parser.add_argument(
         "--timeout",
         type=int,
         default=DEFAULT_TIMEOUT,
@@ -117,15 +121,17 @@ def main():
         ),
     )
     args = parser.parse_args()
-    annotate_chats_in_file_and_write(
-        input_path=args.input,
-        output_path=args.output,
+    config = AnnotatorRunConfig(
         model=args.model,
         annotation_ids=args.annotation_ids,
         preceding_count=args.preceding_context,
-        cot_enabled=args.cot_enabled,
         timeout=args.timeout,
         max_workers=args.max_workers,
+    )
+    annotate_chats_in_file_and_write(
+        input_path=args.input,
+        output_path=args.output,
+        config=config,
     )
 
 
