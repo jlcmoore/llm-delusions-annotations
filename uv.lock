@@ -887,7 +887,7 @@ wheels = [
 ]
 
 [[package]]
-name = "llm-delusions-annotation"
+name = "llm-delusions-annotations"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
