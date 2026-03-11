@@ -22,6 +22,9 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.package-data]
+"*" = ["*.csv"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
