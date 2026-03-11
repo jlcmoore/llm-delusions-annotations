@@ -214,4 +214,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-\n# LLM Delusions Annotations\nsrc/llm_delusions_annotations/data/annotations_raw.csv
+
+# LLM Delusions Annotations
+src/llm_delusions_annotations/data/annotations_raw.csv
