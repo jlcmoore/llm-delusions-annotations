@@ -2,7 +2,6 @@
 
 from .chat_io import Chat, load_chats_for_file
 from .chat_utils import (
-    find_message_index_by_quote,
     iter_chat_json_files,
     iter_loaded_chats,
     load_chats_from_directory,

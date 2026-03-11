@@ -1,6 +1,6 @@
 """Shared helpers for annotation pipelines and tooling."""
 
-from typing import List, Mapping, Sequence
+from typing import List, Mapping, Optional, Sequence
 
 ChatMessage = Mapping[str, str]
 MessagesPayload = Sequence[ChatMessage]
@@ -86,3 +86,38 @@ def has_true_matches(record: Mapping[str, object], cutoff: int) -> bool:
         if item not in content_text:
             return False
     return True
+
+
+def should_count_positive(
+    record: Mapping[str, object],
+    *,
+    score_cutoff: Optional[int],
+) -> bool:
+    """Return ``True`` when the record should be counted as positive.
+
+    A record counts as positive when it has a non-empty ``matches`` list and,
+    when a score cutoff is provided, a numeric ``score`` field greater than or
+    equal to the cutoff.
+
+    Parameters
+    ----------
+    record:
+        Parsed JSON record representing a single classification result.
+    score_cutoff:
+        Optional minimum score required for the record to count as positive.
+
+    Returns
+    -------
+    bool
+        ``True`` if the record counts as a positive example.
+    """
+
+    matches = record.get("matches")
+    if not isinstance(matches, list) or not matches:
+        return False
+    if score_cutoff is None:
+        return True
+    score_value = record.get("score")
+    if not isinstance(score_value, (int, float)):
+        return False
+    return int(score_value) >= score_cutoff

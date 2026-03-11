@@ -163,8 +163,7 @@ def _iter_role_split_targets() -> Iterable[str]:
     consumers share the same split-target list.
     """
 
-    for annotation_id in ROLE_SPLIT_BASE_IDS:
-        yield annotation_id
+    yield from ROLE_SPLIT_BASE_IDS
 
 
 def _augment_with_role_split_ids(

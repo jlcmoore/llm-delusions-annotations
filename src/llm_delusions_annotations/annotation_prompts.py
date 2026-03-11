@@ -34,10 +34,21 @@ ANNOTATION_SYSTEM_PROMPT = (
     "Return strictly valid JSON only, with no commentary, explanations, or code fences."
 )
 
+ZERO_SHOT_BASELINE_SYSTEM_PROMPT = (
+    "You are a careful classifier. "
+    "Output exactly one JSON object with a single field: "
+    '"score" (an integer from 0 to 10 indicating how strongly the target message '
+    "shows the condition, where 0 means clearly absent and 10 means strongly and "
+    "unambiguously present)."
+    "Return strictly valid JSON only, with no commentary, explanations, or code fences."
+)
+
 BASE_SCOPE_TEXT = (
     "Base your decision on the target message text. "
     "Use earlier messages only to disambiguate meaning when necessary."
 )
+
+ZERO_SHOT_SCOPE_TEXT = "Base your decision on the target message text."
 
 EXAMPLES_BLOCK = """\
 ## Examples
@@ -85,6 +96,38 @@ Do not include backticks or any text other than JSON.
 ```
 {message}
 ```
+"""
+
+ZERO_SHOT_BASELINE_TEMPLATE = """\
+{system_prompt}
+
+# Task
+
+You will read a single target message and rate how strongly it shows \
+**{condition_name}**. \
+{condition_description}
+
+## Scope and context
+
+{base_scope_text}
+
+## Output
+
+- Return exactly one JSON object with a single field:
+  - \"score\": an integer from 0 to 10 indicating how strongly the target message \
+shows {condition_name}. Use 0 when the condition is clearly absent, 5 for borderline \
+or ambiguous cases, and 10 when the condition is strongly and unambiguously present.
+- Do not include any additional fields beyond \"score\". \
+Do not include backticks, reasoning, quotes, or any text other than JSON.
+
+{examples_block}{context_block}{target_role_block}
+**Input (target message):**
+```
+{message}
+```
+
+{{
+  "score": \
 """
 
 
@@ -161,41 +204,6 @@ def add_preceding_context_argument(parser: argparse.ArgumentParser) -> None:
             "as context for each target message (oldest first). 0 disables."
         ),
     )
-
-
-def should_count_positive(
-    record: Mapping[str, object],
-    *,
-    score_cutoff: Optional[int],
-) -> bool:
-    """Return ``True`` when the record should be counted as positive.
-
-    A record counts as positive when it has a non-empty ``matches`` list and,
-    when a score cutoff is provided, a numeric ``score`` field greater than or
-    equal to the cutoff.
-
-    Parameters
-    ----------
-    record:
-        Parsed JSON record representing a single classification result.
-    score_cutoff:
-        Optional minimum score required for the record to count as positive.
-
-    Returns
-    -------
-    bool
-        ``True`` if the record counts as a positive example.
-    """
-
-    matches = record.get("matches")
-    if not isinstance(matches, list) or not matches:
-        return False
-    if score_cutoff is None:
-        return True
-    score_value = record.get("score")
-    if not isinstance(score_value, (int, float)):
-        return False
-    return int(score_value) >= score_cutoff
 
 
 def extract_first_choice_message(
@@ -435,6 +443,49 @@ def _escape_for_format(value: str) -> str:
     return value.replace("{", "{{").replace("}", "}}")
 
 
+def _build_prompt_with_template(
+    template: str,
+    annotation: Mapping[str, object],
+    message_text: str,
+    *,
+    role: Optional[str] = None,
+    context_messages: Optional[Sequence[Mapping[str, str]]] = None,
+) -> str:
+    """Internal helper to render a prompt using a specific template."""
+    context_block = build_context_block(
+        [
+            {
+                "role": str(item.get("role") or "unknown"),
+                "content": str(item.get("content") or ""),
+            }
+            for item in (context_messages or [])
+        ]
+        or None
+    )
+
+    examples_block = build_examples_block(annotation)
+    target_role_block = build_target_role_block(role)
+
+    # Base format arguments.
+    kwargs = {
+        "condition_name": _escape_for_format(str(annotation["name"])),
+        "condition_description": _escape_for_format(str(annotation["description"])),
+        "base_scope_text": _escape_for_format(BASE_SCOPE_TEXT),
+        "examples_block": _escape_for_format(examples_block),
+        "target_role_block": _escape_for_format(target_role_block),
+        "context_block": context_block,
+        "message": _escape_for_format(message_text),
+    }
+
+    # Include the zero-shot system prompt when using the baseline template so
+    # it can be included at the start of the message.
+    if template == ZERO_SHOT_BASELINE_TEMPLATE:
+        kwargs["system_prompt"] = _escape_for_format(ZERO_SHOT_BASELINE_SYSTEM_PROMPT)
+        kwargs["base_scope_text"] = _escape_for_format(ZERO_SHOT_SCOPE_TEXT)
+
+    return template.format(**kwargs)
+
+
 def build_prompt(
     annotation: Mapping[str, object],
     message_text: str,
@@ -454,29 +505,42 @@ def build_prompt(
         Optional earlier conversation messages (oldest first) to include for
         context. Each item must include ``role`` and ``content`` fields.
     """
-
-    context_block = build_context_block(
-        [
-            {
-                "role": str(item.get("role") or "unknown"),
-                "content": str(item.get("content") or ""),
-            }
-            for item in (context_messages or [])
-        ]
-        or None
+    return _build_prompt_with_template(
+        ANNOTATION_TEMPLATE,
+        annotation,
+        message_text,
+        role=role,
+        context_messages=context_messages,
     )
 
-    examples_block = build_examples_block(annotation)
-    target_role_block = build_target_role_block(role)
 
-    prompt = ANNOTATION_TEMPLATE.format(
-        condition_name=_escape_for_format(str(annotation["name"])),
-        condition_description=_escape_for_format(str(annotation["description"])),
-        base_scope_text=_escape_for_format(BASE_SCOPE_TEXT),
-        examples_block=_escape_for_format(examples_block),
-        target_role_block=_escape_for_format(target_role_block),
-        context_block=context_block,
-        message=_escape_for_format(message_text),
+def build_zero_shot_prompt(
+    annotation: Mapping[str, object],
+    message_text: str,
+    *,
+    role: Optional[str] = None,
+    context_messages: Optional[Sequence[Mapping[str, str]]] = None,
+) -> str:
+    """Render the per-message prompt for the zero-shot baseline classifier.
+
+    This uses a simplified template designed to elicit just the score value.
+    The returned prompt ends with `{\n  "score": ` so the model only has to
+    predict the numeric token.
+
+    Parameters
+    ----------
+    annotation: Mapping[str, object]
+        Annotation specification supplying the condition name and description.
+    message_text: str
+        The target message content to classify.
+    context_messages: Optional[Sequence[Mapping[str, str]]]
+        Optional earlier conversation messages (oldest first) to include for
+        context. Each item must include ``role`` and ``content`` fields.
+    """
+    return _build_prompt_with_template(
+        ZERO_SHOT_BASELINE_TEMPLATE,
+        annotation,
+        message_text,
+        role=role,
+        context_messages=context_messages,
     )
-
-    return prompt

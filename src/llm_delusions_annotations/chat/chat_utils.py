@@ -161,51 +161,6 @@ def resolve_bucket_and_rel_path(
     return (bucket or None, rel_path)
 
 
-def find_message_index_by_quote(
-    messages: Sequence[Mapping[str, str]], quote: str
-) -> int:
-    """Return the index of the first message whose content contains the quote.
-
-    Performs an exact substring search first, followed by a case-insensitive search.
-
-    Parameters:
-        messages: A sequence of messages with at least a 'content' field.
-        quote: The substring to locate within a message's content.
-
-    Returns:
-        Zero-based index of the first matching message.
-
-    Raises:
-        ValueError: If the quote is empty or not found.
-    """
-
-    needle = quote.strip()
-    if not needle:
-        raise ValueError("Empty quote provided; cannot match")
-
-    # Exact substring search
-    for i, msg in enumerate(messages):
-        content = msg.get("content")
-        if isinstance(content, str) and needle in content:
-            return i
-
-    # Case-insensitive fallback
-    lower = needle.lower()
-    for i, msg in enumerate(messages):
-        content = msg.get("content")
-        if isinstance(content, str) and lower in content.lower():
-            return i
-
-    max_preview = 80
-    preview = (
-        needle if len(needle) <= max_preview else needle[: max_preview - 3] + "..."
-    )
-    raise ValueError(
-        "Quote not found in any message content; "
-        f"preview={preview!r}, length={len(needle)}, messages={len(messages)}"
-    )
-
-
 def normalize_optional_string(value: object) -> Optional[str]:
     """Return a stripped string value or ``None`` when unusable."""
 

@@ -107,13 +107,20 @@ def load_annotation_configs(
     """
 
     if annotation_ids:
-        normalized_ids = [str(item) for item in annotation_ids if item]
-        specs = [resolve_annotation(annotation_id) for annotation_id in normalized_ids]
+        normalized_ids = [
+            str(item) for item in annotation_ids if item and str(item).strip().lower()
+        ]
+        specs = [
+            resolve_annotation(annotation_id)
+            for annotation_id in normalized_ids
+            if annotation_id.strip().lower() != "test"
+        ]
     else:
         specs = [
             spec
             for spec in ANNOTATIONS
             if str(spec.get("category", "")).strip().lower() != "test"
+            and str(spec.get("id", "")).strip().lower() != "test"
         ]
     return [
         AnnotationConfig(spec=spec, allowed_roles=parse_annotation_scope(spec))
