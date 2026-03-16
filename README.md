@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This Python package implements a tool for annotating user-chatbot conversation transcripts with an inventory of 27 codes that are relevant to the study of chatbot-reinforced delusions and psychological harms. For more information, refer to our full paper "Characterizing Delusional Spirals through Human-LLM Chat Logs".
+This Python package implements a tool for annotating user-chatbot conversation transcripts with an inventory of 28 codes that are relevant to the study of chatbot-reinforced delusions and psychological harms. For more information, refer to our full paper "Characterizing Delusional Spirals through Human-LLM Chat Logs".
 
 ## Installation
 
@@ -10,17 +10,15 @@ Currently, this Python package must be installed directly from the GitHub reposi
 
 To install using pip:
 
-```python
-pip install llm@redacted
+```sh
+pip install git+https://github.com/jlcmoore/llm-delusions-annotations.git
 ```
 
 To install using uv:
 
-```python
-uv install llm-delusions-annotations@redacted
+```sh
+uv pip install git+https://github.com/jlcmoore/llm-delusions-annotations.git
 ```
-
-**TODO**: URLs have been removed for anonymization; add them after paper publication
 
 ## Usage
 
