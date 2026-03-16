@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import logging
+from importlib import resources
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -19,14 +20,21 @@ from llm_delusions_annotations.annotation_ids import (
 
 LOGGER = logging.getLogger(__name__)
 
+CUTOFFS_PACKAGE = "llm_delusions_annotations.data"
+CUTOFFS_FILENAME = "cutoffs.csv"
+CUTOFFS_FILE = resources.files(CUTOFFS_PACKAGE).joinpath(CUTOFFS_FILENAME)
 
-def load_llm_cutoffs_from_csv(csv_path: Optional[str]) -> Optional[Dict[str, int]]:
+
+def load_llm_cutoffs_from_csv(
+    csv_path: Optional[str | Path],
+) -> Optional[Dict[str, int]]:
     """Return per-annotation LLM cutoffs loaded from a CSV file.
 
     Parameters
     ----------
     csv_path:
         Path to a CSV file with ``annotation_id`` and ``cutoff`` columns.
+        Defaults to the shared ``cutoffs.csv`` in the package data.
 
     Returns
     -------
@@ -36,19 +44,16 @@ def load_llm_cutoffs_from_csv(csv_path: Optional[str]) -> Optional[Dict[str, int
         using the module logger.
     """
 
-    if not csv_path:
-        return None
-
-    cutoffs_path = Path(str(csv_path)).expanduser()
+    path = Path(str(csv_path)).expanduser() if csv_path else CUTOFFS_FILE
     try:
-        with cutoffs_path.open("r", encoding="utf-8", newline="") as handle:
+        with path.open("r", encoding="utf-8", newline="") as handle:
             reader = csv.DictReader(handle)
             fieldnames = reader.fieldnames or []
             if "annotation_id" not in fieldnames or "cutoff" not in fieldnames:
                 LOGGER.error(
                     "LLM cutoffs file %s must contain 'annotation_id' and "
                     "'cutoff' columns.",
-                    cutoffs_path,
+                    path,
                 )
                 return None
 
@@ -66,26 +71,26 @@ def load_llm_cutoffs_from_csv(csv_path: Optional[str]) -> Optional[Dict[str, int
                         "LLM cutoffs file %s",
                         raw_value,
                         annotation_id,
-                        cutoffs_path,
+                        path,
                     )
                     continue
                 cutoffs[annotation_id] = cutoff_value
     except OSError as err:
-        LOGGER.error("Failed to read LLM cutoffs file %s: %s", cutoffs_path, err)
+        LOGGER.error("Failed to read LLM cutoffs file %s: %s", path, err)
         return None
 
     if not cutoffs:
         LOGGER.warning(
             "LLM cutoffs file %s did not contain any usable "
             "annotation->cutoff mappings.",
-            cutoffs_path,
+            path,
         )
         return {}
 
     return cutoffs
 
 
-def load_cutoffs_mapping(json_path: Optional[str]) -> Dict[str, int]:
+def load_cutoffs_mapping(json_path: Optional[str | Path]) -> Dict[str, int]:
     """Return a mapping from annotation id to cutoff or an empty mapping.
 
     This thin wrapper avoids repeated boilerplate in analysis scripts and keeps
@@ -93,7 +98,11 @@ def load_cutoffs_mapping(json_path: Optional[str]) -> Dict[str, int]:
     """
 
     cutoffs = load_llm_cutoffs_from_csv(json_path)
+    if cutoffs is None and json_path is not None:
+        return {}
     if cutoffs is None:
+        # Fallback to internal data if no path was provided and loading failed
+        # (though load_llm_cutoffs_from_csv handles the default path)
         return {}
 
     mapping: Dict[str, int] = {}
@@ -119,4 +128,4 @@ def load_cutoffs_mapping(json_path: Optional[str]) -> Dict[str, int]:
     return mapping
 
 
-__all__ = ["load_llm_cutoffs_from_csv", "load_cutoffs_mapping"]
+__all__ = ["load_llm_cutoffs_from_csv", "load_cutoffs_mapping", "CUTOFFS_FILE"]
