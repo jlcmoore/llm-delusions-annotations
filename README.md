@@ -130,5 +130,11 @@ Chat transcripts can contain messages from tools (i.e. messages in which `"role"
 Please cite this software using the following citation:
 
 ```
-TBD
+@misc{moore_characterizing_2026,
+  title = {Characterizing Delusional Spirals through Human-LLM Chat Logs},
+  author = {Moore, Jared and Mehta, Ashish and Agnew, William and Anthis, Jacy Reese and Louie, Ryan and Mai, Yifan and Yin, Peggy and Cheng, Myra and Paech, Samuel J. and Klyman, Kevin and Chancellor, Stevie and Lin, Eric and Haber, Nick and Ong, Desmond},
+  year = {2026},
+  url = {https://spirals.stanford.edu/p/characterizing},
+  note = {To appear in ACM FAccT 2026},
+}
 ```
