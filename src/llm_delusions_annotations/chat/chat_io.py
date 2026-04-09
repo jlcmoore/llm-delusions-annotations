@@ -261,6 +261,7 @@ def _extract_messages_from_grok_export(conv: Dict[str, object]) -> List[Dict[str
                 content=text,
                 model_slug=model_slug,
                 timestamp_label=timestamp_label,
+                recipient=response.get("recipient"),
             )
         )
 
@@ -405,6 +406,10 @@ def _normalize(messages: List[Dict[str, object]]) -> List[Dict[str, str]]:
         timestamp_label = extract_best_timestamp_label(message)
         if timestamp_label:
             entry["timestamp"] = timestamp_label
+        recipient_value = message.get("recipient")
+        recipient = _normalize_recipient(recipient_value)
+        if recipient:
+            entry["recipient"] = recipient
         out.append(entry)
     return out
 
@@ -522,11 +527,13 @@ def _message_entry_from_node(node: Dict[str, object]) -> Dict[str, str] | None:
     )
     model_slug = metadata.get("model_slug")
     timestamp_label = extract_best_timestamp_label(message)
+    recipient = message.get("recipient")
     return _build_message_entry(
         role=role,
         content=text,
         model_slug=model_slug,
         timestamp_label=timestamp_label,
+        recipient=recipient,
     )
 
 
@@ -728,11 +735,32 @@ def _normalize_role(
     return "unknown"
 
 
+def _normalize_recipient(recipient_value: object) -> str:
+    """Normalize a recipient value, defaulting to ``all``.
+
+    Parameters
+    ----------
+    recipient_value:
+        Raw recipient value from transcript message payload.
+
+    Returns
+    -------
+    str
+        Normalized recipient string.
+    """
+
+    recipient = str(recipient_value or "").strip().lower()
+    if recipient:
+        return recipient
+    return "all"
+
+
 def _build_message_entry(
     role: str,
     content: str,
     model_slug: Optional[object],
     timestamp_label: Optional[str],
+    recipient: Optional[object] = None,
 ) -> Dict[str, str]:
     """Build a normalized message entry.
 
@@ -746,6 +774,8 @@ def _build_message_entry(
         Optional model identifier.
     timestamp_label:
         Optional timestamp label string.
+    recipient:
+        Optional recipient value attached to the message.
 
     Returns
     -------
@@ -760,4 +790,5 @@ def _build_message_entry(
             entry["model_slug"] = slug
     if timestamp_label:
         entry["timestamp"] = timestamp_label
+    entry["recipient"] = _normalize_recipient(recipient)
     return entry
